@@ -430,6 +430,9 @@
 
 ;; Main 
 (defn create-and-show-gui []
+  (javax.swing.UIManager/put "Button.foreground" (java.awt.Color. 0 0 0))
+  (javax.swing.UIManager/put "Button.background" (java.awt.Color. 240 240 240))
+  (javax.swing.UIManager/put "Panel.background" (java.awt.Color. 245 245 245))
   (let [frame (JFrame. "S.L.A")
         main-panel (JPanel. (BorderLayout.))]
     (.setPreferredSize frame (Dimension. 800 600))
