@@ -16,6 +16,6 @@ This program is provided as is. I have not included any datasets with it. It mak
 
 <pre> Language_Word/Phrase  Meaning  Blank_Column  Sound </pre>
 
-My personal intent is to use it as an alternative to Anki decks, like [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
+My personal intent is to use it as an alternative to Anki for data from Anki decks, like [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
 
 <sub>S.L.A stands for Shitty Language Application - in case you were wondering hehe</sub>
