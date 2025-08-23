@@ -1,0 +1,9 @@
+match-1=1
+learn-next=space
+learn-prev=p
+learn-shuffle=s
+match-4=4
+match-2=2
+match-3=3
+learn-reveal=r
+menu=m
