@@ -23,6 +23,10 @@ e.g.
 
 <pre> Hej / Hallo	Hello		audio/00002.wav </pre>
 
+File structure looks like:
+
+<pre> audio  config.txt  SLA-1.1-standalone.jar  Xefjord_Danish.tsv </pre>
+
 ____
 
 My intended use for this is as an alternative to Anki for sorted data from Anki decks, e.g. [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
