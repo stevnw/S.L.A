@@ -25,7 +25,7 @@ e.g.
 
 File structure looks like:
 
-<pre> audio  config.txt  SLA-1.1-standalone.jar  Xefjord_Danish.tsv </pre>
+<pre> audio (folder)  config.txt  SLA-1.1-standalone.jar  Xefjord_Danish.tsv </pre>
 
 ____
 
