@@ -1,21 +1,30 @@
 # S.L.A
 S.L.A - Flashcard and Quiz tool for language learning. S.L.A has 2 main modes - "learn" and "match". Learn is like flashcards, where you go through the deck. Match is a game where you have to match the correct meaning to the word/phrase.
 
-<img width="800" height="604" alt="image" src="https://github.com/user-attachments/assets/45cf167b-60df-4058-9d29-6ef848f82204" />
+<img width="800" height="604" alt="image" src="https://github.com/user-attachments/assets/0a5ea6b5-b9ca-47db-8140-d63fe2f2357c" />
 
-<img width="800" height="604" alt="image" src="https://github.com/user-attachments/assets/e7905bdf-2f81-4ba1-80c6-6ae651ac9a63" />
+<img width="800" height="604" alt="image" src="https://github.com/user-attachments/assets/45242b2c-871c-45af-8a54-4af237aba2f6" />
 
-<img width="800" height="604" alt="image" src="https://github.com/user-attachments/assets/595518b7-c277-4a1c-8b8a-607199a4f318" />
+<img width="800" height="604" alt="image" src="https://github.com/user-attachments/assets/d1296b4f-2a16-45a6-a6d3-18ae91d2c9c3" />
 
- 
- <b>To do:</b>
- - [ ] Get sound working
- - [ ] Aesthetics ?
+## Note:
 
-This program is provided as is. I have not included any datasets with it. It makes uses .tsv files in the format:
+This program features 3 display themes: light, dark and sepia. 
+
+This program is provided as is. <i><b>I have not included any datasets with it.</i></b> It makes uses .tsv files in the format:
 
 <pre> Language_Word/Phrase  Meaning  Blank_Column  Sound </pre>
 
-My personal intent is to use it as an alternative to Anki for data from Anki decks, like [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
+All audio has to be .wav. A valid file path can be something like:
+
+<pre> audio/00001.wav </pre>
+
+e.g.
+
+<pre> Hej / Hallo	Hello		audio/00002.wav </pre>
+
+____
+
+My intended use for this is as an alternative to Anki for sorted data from Anki decks, e.g. [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
 
 <sub>S.L.A stands for Swing Language Application - in case you were wondering hehe</sub>
