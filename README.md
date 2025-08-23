@@ -4,7 +4,7 @@ S.L.A - Flashcard and Quiz tool for language learning.
 
  
  <b>To do:</b>
- [ ] Get sound working
+ - [ ] Get sound working
 
 This program uses .TSV files in the format:
 
