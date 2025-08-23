@@ -18,4 +18,4 @@ This program is provided as is. I have not included any datasets with it. It mak
 
 My personal intent is to use it as an alternative to Anki for data from Anki decks, like [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
 
-<sub>S.L.A stands for Shitty Language Application - in case you were wondering hehe</sub>
+<sub>S.L.A stands for Swing Language Application - in case you were wondering hehe</sub>
