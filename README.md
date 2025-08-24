@@ -31,4 +31,6 @@ ____
 
 My intended use for this is as an alternative to Anki for sorted data from Anki decks, e.g. [Xefjord's Complete Language Series](https://xefjord.wixsite.com/xefscompletelangs/courses) 
 
+Check out my Anki Add-on for a quick way to pull data sets from Anki: https://github.com/stevnw/ExportWithAudio-Anki
+
 <sub>S.L.A stands for Swing Language Application - in case you were wondering hehe</sub>
