@@ -13,7 +13,9 @@ This program features 3 display themes: light, dark and sepia.
 
 This program is provided as is. <i><b>I have not included any datasets with it.</i></b> It makes uses .tsv files in the format:
 
-<pre> Language_Word/Phrase  Meaning  Blank_Column  Sound </pre>
+<pre> Language_Word/Phrase  Meaning  Readings*  Sound </pre>
+
+<sub>* leave Readings blank if the languages doesn't need them - this is more for Japanese or Chinese with kana and pinyin readings </sub>
 
 All audio has to be .wav. A valid file path can be something like:
 
@@ -26,6 +28,13 @@ e.g.
 File structure looks like:
 
 <pre> audio (folder)  config.txt  SLA-1.1-standalone.jar  Xefjord_Danish.tsv </pre>
+
+
+Fonts:
+
+Create a folder in the root directory called "user" - just place the fonts (.ttf or .otf) here. 
+
+The font will then appear in the options if configured correctly.
 
 ____
 
