@@ -1,14 +1,16 @@
 (ns SLA.core
   (:gen-class)
-  (:import [javax.swing JFrame JPanel JButton JLabel SwingUtilities JOptionPane JComboBox JTextField]
+  (:import [javax.swing JFrame JPanel JButton JLabel SwingUtilities JOptionPane JComboBox JTextField JScrollPane]
            [java.awt BorderLayout GridLayout CardLayout Dimension Color Font Insets GridBagLayout GridBagConstraints FlowLayout]
            [java.awt.event ActionListener KeyEvent KeyListener]
            [java.io File FileReader FileWriter BufferedReader BufferedWriter]
            [java.util ArrayList Collections Properties]
            [javax.sound.sampled AudioSystem Clip AudioInputStream]
-           [java.net URL]))
+           [java.net URL]
+           [java.awt GraphicsEnvironment]
+           [java.io FileInputStream]))
 
-(defrecord LanguageWord [language meaning sound-file])
+(defrecord LanguageWord [language meaning sound-file reading])
 
 (def words (atom []))
 (def current-index (atom 0))
@@ -17,7 +19,7 @@
 (def tsv-files (atom []))
 (def selected-tsv (atom ""))
 (def current-card (atom "home"))
-(def version "1.1")
+(def version "1.1.2")
 (def main-frame (atom nil))
 
 ; Default hotkeys
@@ -90,6 +92,23 @@
 
 (load-config)
 
+(defn get-sla-fonts []
+  (let [font-dir (File. "user")
+        font-files (atom [])]
+    (when (.exists font-dir)
+      (doseq [file (.listFiles font-dir)]
+        (when (and (.isFile file)
+                   (or (.endsWith (.getName file) ".ttf")
+                       (.endsWith (.getName file) ".otf")))
+          (try
+            (let [font (Font/createFont Font/TRUETYPE_FONT file)]
+              (-> (GraphicsEnvironment/getLocalGraphicsEnvironment)
+                  (.registerFont font))
+              (swap! font-files conj (.getFontName font)))
+            (catch Exception e
+              (println "Error loading font" (.getName file) ":" (.getMessage e)))))))
+    (sort @font-files)))
+
 (defn apply-theme []
   (let [theme-colors (get themes @current-theme)]
     (javax.swing.UIManager/put "Panel.background" (:panel-bg theme-colors))
@@ -127,9 +146,10 @@
             sound-file (when (and (not (clojure.string/blank? sound-tag)) ; from my tests it works.
                                   (clojure.string/includes? sound-tag ".wav")
                                   (not (clojure.string/starts-with? sound-tag "[sound:")))
-                         (clojure.string/trim sound-tag))]
+                         (clojure.string/trim sound-tag))
+            reading (if (>= (count parts) 3) (nth parts 2) "")] ; Get reading from 3rd column
         (when (>= (count parts) 2)
-          (.add words-list (->LanguageWord (nth parts 0) (nth parts 1) sound-file)))))
+          (.add words-list (->LanguageWord (nth parts 0) (nth parts 1) sound-file reading)))))
     (vec words-list)))
 
 ;; I believe this is now in an okay state? My tests seem fine
@@ -161,7 +181,7 @@
     (.setBackground button (:button-bg theme-colors))
     (.setForeground button (:button-fg theme-colors))
     (.setOpaque button true)
-    (.setFont button (Font. "Arial" Font/BOLD (or font-size 14)))
+    (.setFont button (Font. "SansSerif" Font/BOLD (or font-size 14)))
     (.setMargin button (Insets. 5 15 5 15))
     (when (and button-width button-height)
       (.setPreferredSize button (Dimension. button-width button-height)))
@@ -169,17 +189,25 @@
 
 (defn create-label [text & [font-size alignment]]
   (let [label (JLabel. text (or alignment JLabel/CENTER))
-        theme-colors (get themes @current-theme)]
-    (when font-size
-      (.setFont label (Font. "Arial" Font/BOLD font-size)))
+        theme-colors (get themes @current-theme)
+        font-family (get @config :font-family) ; Should only use user fonts for only the labels ??? I could imagine a custom font breaking UI buttons...
+        base-font-size (Integer/parseInt (or (get @config :font-size) "16"))
+        final-font-size (or font-size base-font-size)]
+    (when final-font-size
+      (if font-family
+        (.setFont label (Font. font-family Font/BOLD final-font-size))
+        (.setFont label (Font. "SansSerif" Font/BOLD final-font-size))))
     (.setForeground label (:label-fg theme-colors))
     label))
 
 ;; Version
 (defn create-version-bar []
   (let [version-label (JLabel. (str "S.L.A: v" version) JLabel/RIGHT)
-        panel (JPanel. (BorderLayout.))]
-    (.setFont version-label (Font. "Arial" Font/PLAIN 10))
+        panel (JPanel. (BorderLayout.))
+        font-family (get @config :font-family)]
+    (if font-family
+      (.setFont version-label (Font. font-family Font/PLAIN 10))
+      (.setFont version-label (Font. "SansSerif" Font/PLAIN 10)))
     (.setForeground version-label Color/GRAY)
     (.setBorder panel (javax.swing.BorderFactory/createEmptyBorder 2 5 2 5))
     (.add panel version-label BorderLayout/EAST)
@@ -203,8 +231,9 @@
   (let [index @current-index
         word (nth @words index)
         language-label (create-label (:language word) 32)
+        reading-label (when (not (clojure.string/blank? (:reading word)))
+                       (create-label (:reading word) 16))
         meaning-label (create-label (:meaning word) 20)]
-    ;; Make language label clickable for audio
     (when (:sound-file word)
       (.setCursor language-label (java.awt.Cursor/getPredefinedCursor java.awt.Cursor/HAND_CURSOR))
       (.addMouseListener language-label
@@ -214,9 +243,11 @@
     
     (.removeAll learn-panel)
     (add-menu-button learn-panel)
-    (let [content-panel (JPanel. (GridLayout. 2 1 10 10))
+    (let [content-panel (JPanel. (GridLayout. (if reading-label 3 2) 1 10 10))
           meaning-panel (JPanel. (BorderLayout.))]
       (.add content-panel language-label)
+      (when reading-label
+        (.add content-panel reading-label))
       (.add meaning-panel meaning-label BorderLayout/CENTER)
       (.setVisible meaning-panel false)
       (.add content-panel meaning-panel)
@@ -230,7 +261,7 @@
       (.add button-panel
             (create-button "Reveal"
                            (fn [_]
-                             (let [meaning-panel (.getComponent (.getComponent learn-panel 1) 1)]
+                             (let [meaning-panel (.getComponent (.getComponent learn-panel 1) (if reading-label 2 1))]
                                (.setVisible meaning-panel true)
                                (.revalidate learn-panel)
                                (.repaint learn-panel)))))
@@ -258,9 +289,10 @@
                     shuffle)
         correct-option-index (.indexOf options correct-word)
         feedback-label (create-label " " 18)
-        language-label (create-label (:language correct-word) 28)]
+        language-label (create-label (:language correct-word) 28)
+        reading-label (when (not (clojure.string/blank? (:reading correct-word)))
+                       (create-label (:reading correct-word) 16))]
     
-    ;; Make language label clickable for audio
     (when (:sound-file correct-word)
       (.setCursor language-label (java.awt.Cursor/getPredefinedCursor java.awt.Cursor/HAND_CURSOR))
       (.addMouseListener language-label
@@ -273,6 +305,8 @@
     (let [center-content-panel (JPanel. (BorderLayout. 20 20))
           options-panel (JPanel. (GridLayout. 2 2 10 10))]
       (.add center-content-panel language-label BorderLayout/CENTER)
+      (when reading-label
+        (.add center-content-panel reading-label BorderLayout/SOUTH)) ; Add reading label (3rd column - where Vocab Meaning Reading Audio)
       (.add center-content-panel feedback-label BorderLayout/SOUTH)
       (doseq [[idx option] (map-indexed vector options)]
         (.add options-panel
@@ -300,23 +334,53 @@
 (defn create-options-panel []
   (.removeAll options-panel)
   (add-menu-button options-panel)
-  (let [content-panel (JPanel. (GridBagLayout.))
+  (let [scroll-panel (JScrollPane.)
+        content-panel (JPanel. (GridBagLayout.))
         gbc (GridBagConstraints.)
         hotkey-fields (atom {})
-        theme-combo (JComboBox. (into-array ["light" "dark" "sepia"]))]
+        theme-combo (JComboBox. (into-array ["light" "dark" "sepia"]))
+        available-fonts (concat ["System Default"] (get-sla-fonts))
+        font-combo (JComboBox. (into-array available-fonts))
+        font-size-field (JTextField. (or (get @config :font-size) "16"))]
+    
+    (.setViewportView scroll-panel content-panel)
+    (.setVerticalScrollBarPolicy scroll-panel JScrollPane/VERTICAL_SCROLLBAR_AS_NEEDED)
+    (.setHorizontalScrollBarPolicy scroll-panel JScrollPane/HORIZONTAL_SCROLLBAR_NEVER)
+    
     (set! (.gridwidth gbc) 2)
     (set! (.insets gbc) (Insets. 10 10 5 10))
     (set! (.anchor gbc) GridBagConstraints/WEST)
     (set! (.gridy gbc) 0)
     (.add content-panel (create-label "Settings" 20) gbc)
+    
+    ; Font controls
     (set! (.gridy gbc) 1)
+    (set! (.gridx gbc) 0)
+    (.add content-panel (create-label "Font Family:") gbc)
+    (set! (.gridx gbc) 1)
+    (.setSelectedItem font-combo (if-let [current-font (get @config :font-family)]
+                                   current-font
+                                   "System Default"))
+    (.add content-panel font-combo gbc)
+    
+    (set! (.gridy gbc) 2)
+    (set! (.gridx gbc) 0)
+    (.add content-panel (create-label "Font Size:") gbc)
+    (set! (.gridx gbc) 1)
+    (.setPreferredSize font-size-field (Dimension. 100 25))
+    (.add content-panel font-size-field gbc)
+    
+    ; Theme control
+    (set! (.gridy gbc) 3)
     (set! (.gridx gbc) 0)
     (.add content-panel (create-label "Theme:") gbc)
     (set! (.gridx gbc) 1)
     (.setSelectedItem theme-combo (name @current-theme))
     (.add content-panel theme-combo gbc)
+    
+    ; Hotkey controls - keep the original layout exactly as it was
     (set! (.gridwidth gbc) 1)
-    (set! (.gridy gbc) 2)
+    (set! (.gridy gbc) 4)
     (doseq [[i [label key]] (map-indexed vector
                                          [["Menu" :menu]
                                           ["Learn - Previous" :learn-prev]
@@ -327,7 +391,7 @@
                                           ["Match - Option 2" :match-2]
                                           ["Match - Option 3" :match-3]
                                           ["Match - Option 4" :match-4]])]
-      (set! (.gridy gbc) (+ i 2))
+      (set! (.gridy gbc) (+ i 4))
       (set! (.gridx gbc) 0)
       (.add content-panel (create-label (str label ":")) gbc)
       (set! (.gridx gbc) 1)
@@ -335,9 +399,11 @@
         (.setPreferredSize text-field (Dimension. 100 25))
         (swap! hotkey-fields assoc key text-field)
         (.add content-panel text-field gbc)))
+    
+    ; Buttons at the bottom
     (set! (.gridwidth gbc) 2)
     (set! (.gridx gbc) 0)
-    (set! (.gridy gbc) 12)
+    (set! (.gridy gbc) 14)
     (set! (.anchor gbc) GridBagConstraints/CENTER)
     (let [button-panel (JPanel. (FlowLayout. FlowLayout/CENTER 10 10))]
       (.add button-panel
@@ -346,11 +412,19 @@
                              (doseq [[key field] @hotkey-fields]
                                (swap! config assoc key (.getText field)))
                              (let [new-theme-str (.getSelectedItem theme-combo)
-                                   theme-changed? (not= (name @current-theme) new-theme-str)]
+                                   new-font-family (if (= (.getSelectedItem font-combo) "System Default")
+                                                     nil
+                                                     (.getSelectedItem font-combo))
+                                   new-font-size (.getText font-size-field)
+                                   theme-changed? (not= (name @current-theme) new-theme-str)
+                                   font-changed? (or (not= (get @config :font-family) new-font-family)
+                                                     (not= (get @config :font-size) new-font-size))]
                                (swap! config assoc :theme new-theme-str)
+                               (swap! config assoc :font-family new-font-family)
+                               (swap! config assoc :font-size new-font-size)
                                (reset! current-theme (keyword new-theme-str))
                                (save-config)
-                               (if theme-changed?
+                               (if (or theme-changed? font-changed?)
                                  (restart-app)
                                  (do
                                    (reset! current-card "home")
@@ -363,20 +437,25 @@
       (.add button-panel
             (create-button "Reset to Defaults"
                            (fn [_]
-                             (let [theme-changed? (not= @current-theme :light)]
+                             (let [theme-changed? (not= @current-theme :light)
+                                   font-changed? (or (not (nil? (get @config :font-family)))
+                                                     (not= (get @config :font-size) "16"))]
                                (reset! config default-config)
                                (reset! current-theme :light)
                                (doseq [[key field] @hotkey-fields]
                                  (.setText field (get default-hotkeys key "")))
                                (.setSelectedItem theme-combo (name @current-theme))
+                               (.setSelectedItem font-combo "System Default")
+                               (.setText font-size-field "16")
                                (save-config)
-                               (if theme-changed?
+                               (if (or theme-changed? font-changed?)
                                  (restart-app)
                                  (do
                                    (reset! current-card "home")
                                    (.show card-layout card-panel "home")))))))
       (.add content-panel button-panel gbc))
-    (.add options-panel content-panel BorderLayout/CENTER)
+    
+    (.add options-panel scroll-panel BorderLayout/CENTER)
     (.revalidate options-panel)
     (.repaint options-panel)))
 
@@ -466,7 +545,7 @@
                                          (do (swap! current-index #(max 0 (dec %)))
                                              (update-learn-panel))
                                          (= key-str (get @config :learn-reveal))
-                                         (let [meaning-panel (.getComponent (.getComponent learn-panel 1) 1)]
+                                         (let [meaning-panel (.getComponent (.getComponent learn-panel 1) (if (not (clojure.string/blank? (:reading (nth @words @current-index)))) 2 1))]
                                            (.setVisible meaning-panel true)
                                            (.revalidate learn-panel)
                                            (.repaint learn-panel))
