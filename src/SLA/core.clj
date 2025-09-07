@@ -19,8 +19,11 @@
 (def tsv-files (atom []))
 (def selected-tsv (atom ""))
 (def current-card (atom "home"))
-(def version "1.1.2")
+(def version "1.2")
 (def main-frame (atom nil))
+(def targeted-start-index (atom 0))
+(def targeted-end-index (atom 0))
+(def targeted-mode (atom "learn"))
 
 ; Default hotkeys
 (def default-hotkeys
@@ -38,11 +41,11 @@
   (merge default-hotkeys
          {:theme "light"}))
 
-(def config (atom default-config)) ; Current hotkeys
+(def config (atom default-config))
 
-(def config-file "config.txt") ; Config
+(def config-file "config.txt")
 
-;; Themes and such, potentially add more in the future. The current "darkmode" seems okay...
+;; Themes and such, potentially add more in the future. The current "darkmode" seems okay... - added some more you'd find in IDEs
 (def light-theme
   {:panel-bg (java.awt.Color. 245 245 245)
    :button-bg (java.awt.Color. 240 240 240)
@@ -60,11 +63,25 @@
    :button-bg (java.awt.Color. 210 180 140)
    :button-fg (java.awt.Color. 88 57 39)
    :label-fg (java.awt.Color. 88 57 39)})
-
+   
+(def solarized-theme
+  {:panel-bg (java.awt.Color. 0 43 54)
+   :button-bg (java.awt.Color. 7 54 66)
+   :button-fg (java.awt.Color. 131 148 150)
+   :label-fg (java.awt.Color. 131 148 150)})
+  
+(def sakura-theme
+  {:panel-bg (java.awt.Color. 255 240 245)
+   :button-bg (java.awt.Color. 255 218 230)
+   :button-fg (java.awt.Color. 119 79 97)
+   :label-fg (java.awt.Color. 119 79 97)})
+  
 (def themes
   {:light light-theme
    :dark dark-theme
-   :sepia sepia-theme})
+   :sepia sepia-theme
+   :solarized solarized-theme
+   :sakura sakura-theme})
 
 (def current-theme (atom :light))
 
@@ -81,7 +98,6 @@
       (println "Error loading config:" (.getMessage e))))
   (reset! current-theme (keyword (get @config :theme))))
 
-; Save config I hope ?? It seems to work at least on my machine... This seems like the proper way to do it.
 (defn save-config []
   (try
     (with-open [writer (BufferedWriter. (FileWriter. config-file))]
@@ -140,19 +156,18 @@
 (defn parse-tsv [filename]
   (let [lines (-> filename slurp clojure.string/split-lines)
         words-list (ArrayList.)]
-    (doseq [line (if (> (count lines) 1) (rest lines) lines)] ; Skip header
+    (doseq [line (if (> (count lines) 1) (rest lines) lines)]
       (let [parts (clojure.string/split line #"\t")
             sound-tag (if (>= (count parts) 4) (nth parts 3 "") "")
-            sound-file (when (and (not (clojure.string/blank? sound-tag)) ; from my tests it works.
+            sound-file (when (and (not (clojure.string/blank? sound-tag))
                                   (clojure.string/includes? sound-tag ".wav")
                                   (not (clojure.string/starts-with? sound-tag "[sound:")))
                          (clojure.string/trim sound-tag))
-            reading (if (>= (count parts) 3) (nth parts 2) "")] ; Get reading from 3rd column
+            reading (if (>= (count parts) 3) (nth parts 2) "")]
         (when (>= (count parts) 2)
           (.add words-list (->LanguageWord (nth parts 0) (nth parts 1) sound-file reading)))))
     (vec words-list)))
 
-;; I believe this is now in an okay state? My tests seem fine
 (defn play-audio [audio-file]
   (when (and audio-file (not (clojure.string/blank? audio-file)))
     (try
@@ -190,7 +205,7 @@
 (defn create-label [text & [font-size alignment]]
   (let [label (JLabel. text (or alignment JLabel/CENTER))
         theme-colors (get themes @current-theme)
-        font-family (get @config :font-family) ; Should only use user fonts for only the labels ??? I could imagine a custom font breaking UI buttons...
+        font-family (get @config :font-family)
         base-font-size (Integer/parseInt (or (get @config :font-size) "16"))
         final-font-size (or font-size base-font-size)]
     (when final-font-size
@@ -218,6 +233,7 @@
 (def learn-panel (JPanel. (BorderLayout.)))
 (def match-panel (JPanel. (BorderLayout.)))
 (def options-panel (JPanel. (BorderLayout.)))
+(def targeted-options-panel (JPanel. (BorderLayout.)))
 
 (defn add-menu-button [panel]
   (let [menu-button (create-button "Menu"
@@ -225,6 +241,7 @@
                                      (reset! current-card "home")
                                      (.show card-layout card-panel "home")))]
     (.add panel menu-button BorderLayout/NORTH)))
+
 
 ;; Learn mode
 (defn update-learn-panel []
@@ -234,6 +251,7 @@
         reading-label (when (not (clojure.string/blank? (:reading word)))
                        (create-label (:reading word) 16))
         meaning-label (create-label (:meaning word) 20)]
+    
     (when (:sound-file word)
       (.setCursor language-label (java.awt.Cursor/getPredefinedCursor java.awt.Cursor/HAND_CURSOR))
       (.addMouseListener language-label
@@ -256,7 +274,8 @@
       (.add button-panel
             (create-button "Previous"
                            (fn [_]
-                             (swap! current-index #(max 0 (dec %)))
+                             ;(swap! current-index #(max 0 (dec %)))
+                             (swap! current-index #(if (<= (dec %) 0) (dec (count @words)) (dec %)))
                              (update-learn-panel))))
       (.add button-panel
             (create-button "Reveal"
@@ -268,13 +287,13 @@
       (.add button-panel
             (create-button "Shuffle"
                            (fn [_]
-                             (reset! current-index 0)
                              (swap! words shuffle)
                              (update-learn-panel))))
       (.add button-panel
             (create-button "Next"
                            (fn [_]
-                             (swap! current-index #(min (dec (count @words)) (inc %)))
+                             ;(swap! current-index #(min (dec (count @words)) (inc %)))
+                             (swap! current-index #(if (>= (inc %) (count @words)) 0 (inc %)))
                              (update-learn-panel))))
       (.add learn-panel button-panel BorderLayout/SOUTH))
     (.revalidate learn-panel)
@@ -306,7 +325,7 @@
           options-panel (JPanel. (GridLayout. 2 2 10 10))]
       (.add center-content-panel language-label BorderLayout/CENTER)
       (when reading-label
-        (.add center-content-panel reading-label BorderLayout/SOUTH)) ; Add reading label (3rd column - where Vocab Meaning Reading Audio)
+        (.add center-content-panel reading-label BorderLayout/SOUTH))
       (.add center-content-panel feedback-label BorderLayout/SOUTH)
       (doseq [[idx option] (map-indexed vector options)]
         (.add options-panel
@@ -338,7 +357,7 @@
         content-panel (JPanel. (GridBagLayout.))
         gbc (GridBagConstraints.)
         hotkey-fields (atom {})
-        theme-combo (JComboBox. (into-array ["light" "dark" "sepia"]))
+        theme-combo (JComboBox. (into-array ["light" "dark" "sepia" "solarized" "sakura"]))
         available-fonts (concat ["System Default"] (get-sla-fonts))
         font-combo (JComboBox. (into-array available-fonts))
         font-size-field (JTextField. (or (get @config :font-size) "16"))]
@@ -353,7 +372,6 @@
     (set! (.gridy gbc) 0)
     (.add content-panel (create-label "Settings" 20) gbc)
     
-    ; Font controls
     (set! (.gridy gbc) 1)
     (set! (.gridx gbc) 0)
     (.add content-panel (create-label "Font Family:") gbc)
@@ -370,7 +388,6 @@
     (.setPreferredSize font-size-field (Dimension. 100 25))
     (.add content-panel font-size-field gbc)
     
-    ; Theme control
     (set! (.gridy gbc) 3)
     (set! (.gridx gbc) 0)
     (.add content-panel (create-label "Theme:") gbc)
@@ -378,7 +395,7 @@
     (.setSelectedItem theme-combo (name @current-theme))
     (.add content-panel theme-combo gbc)
     
-    ; Hotkey controls - keep the original layout exactly as it was
+    ; Buttons at the bottom
     (set! (.gridwidth gbc) 1)
     (set! (.gridy gbc) 4)
     (doseq [[i [label key]] (map-indexed vector
@@ -400,7 +417,6 @@
         (swap! hotkey-fields assoc key text-field)
         (.add content-panel text-field gbc)))
     
-    ; Buttons at the bottom
     (set! (.gridwidth gbc) 2)
     (set! (.gridx gbc) 0)
     (set! (.gridy gbc) 14)
@@ -459,6 +475,114 @@
     (.revalidate options-panel)
     (.repaint options-panel)))
 
+;; Targeted mode
+(defn create-targeted-options-panel []
+  (.removeAll targeted-options-panel)
+  (add-menu-button targeted-options-panel)
+  
+  (let [content-panel (JPanel. (GridBagLayout.))
+        gbc (GridBagConstraints.)
+        file-combo (JComboBox. (into-array @tsv-files))
+        start-field (doto (JTextField. (str @targeted-start-index))
+                      (.setPreferredSize (Dimension. 120 25)))
+        end-field (doto (JTextField. (str (if (and @selected-tsv (not (empty? @selected-tsv)))
+                                   (dec (count (parse-tsv @selected-tsv)))
+                                   @targeted-end-index)))
+            (.setPreferredSize (Dimension. 120 25)))
+        mode-combo (JComboBox. (into-array ["Learn" "Match"]))]
+        
+    (.addActionListener file-combo
+      (proxy [ActionListener] []
+        (actionPerformed [e]
+          (let [selected-file (.getSelectedItem file-combo)]
+            (when selected-file
+              (let [word-count (count (parse-tsv selected-file))
+                    end-value (dec word-count)]
+                (.setText end-field (str end-value))))))))
+    
+    (when (seq @tsv-files)
+      (.setSelectedItem file-combo (first @tsv-files)))
+    
+    (.setSelectedItem mode-combo @targeted-mode)
+    
+    (set! (.gridwidth gbc) 2)
+    (set! (.insets gbc) (Insets. 10 10 5 10))
+    (set! (.anchor gbc) GridBagConstraints/WEST)
+    
+    (set! (.gridy gbc) 0)
+    (.add content-panel (create-label "Select Deck:") gbc)
+    (set! (.gridy gbc) 1)
+    (.add content-panel file-combo gbc)
+    
+    (set! (.gridy gbc) 2)
+    (.add content-panel (create-label "Word Range:") gbc)
+    
+    (set! (.gridwidth gbc) 1)
+    (set! (.gridy gbc) 3)
+    (set! (.gridx gbc) 0)
+    (.add content-panel (create-label "Start Index:") gbc)
+    (set! (.gridx gbc) 1)
+    (.add content-panel start-field gbc)
+    
+    (set! (.gridy gbc) 4)
+    (set! (.gridx gbc) 0)
+    (.add content-panel (create-label "End Index:") gbc)
+    (set! (.gridx gbc) 1)
+    (.add content-panel end-field gbc)
+    
+    (set! (.gridwidth gbc) 2)
+    (set! (.gridy gbc) 5)
+    (.add content-panel (create-label "Mode:") gbc)
+    (set! (.gridy gbc) 6)
+    (.add content-panel mode-combo gbc)
+    
+    (set! (.gridy gbc) 7)
+    (set! (.anchor gbc) GridBagConstraints/CENTER)
+    (.add content-panel 
+          (create-button "Start Targeted Mode"
+                         (fn [_]
+                           (try
+                             (let [filename (.getSelectedItem file-combo)
+                                   start (Integer/parseInt (.getText start-field))
+                                   end (Integer/parseInt (.getText end-field))
+                                   mode (.getSelectedItem mode-combo)]
+                               (reset! selected-tsv filename)
+                               (reset! targeted-start-index start)
+                               (reset! targeted-end-index end)
+                               (reset! targeted-mode mode)
+                               
+                               (when-let [filename @selected-tsv]
+                                 (reset! words (parse-tsv filename))
+                                 (swap! words 
+                                        (fn [ws] 
+                                          (subvec ws 
+                                                  (min start (dec (count ws))) 
+                                                  (min (inc end) (count ws)))))
+                                 
+                                 (cond
+                                   (= mode "Learn")
+                                   (do
+                                     (reset! current-index 0)
+                                     (reset! current-card "learn")
+                                     (update-learn-panel)
+                                     (.show card-layout card-panel "learn"))
+                                   
+                                   (= mode "Match")
+                                   (do
+                                     (reset! current-card "match")
+                                     (create-match-panel)
+                                     (.show card-layout card-panel "match")))))
+                             (catch Exception e
+                               (JOptionPane/showMessageDialog targeted-options-panel
+                                                              "Please enter valid numbers for start and end indices."
+                                                              "Input Error"
+                                                              JOptionPane/ERROR_MESSAGE)))))
+          gbc)
+    
+    (.add targeted-options-panel content-panel BorderLayout/CENTER)
+    (.revalidate targeted-options-panel)
+    (.repaint targeted-options-panel)))
+
 ;; Main menu stuff
 (defn create-home-panel []
   (.removeAll home-panel)
@@ -488,6 +612,7 @@
                            (when-let [filename @selected-tsv]
                              (try
                                (reset! words (parse-tsv filename))
+                               (reset! current-index 0)
                                (reset! current-card "learn")
                                (update-learn-panel)
                                (.show card-layout card-panel "learn")
@@ -511,17 +636,27 @@
                                                                 "Error"
                                                                 JOptionPane/ERROR_MESSAGE)))))))
     (.add button-panel
+          (create-button "Targeted Mode"
+                         (fn [_]
+                           (reset! current-card "targeted-options")
+                           (create-targeted-options-panel)
+                           (.show card-layout card-panel "targeted-options"))))
+    (.add button-panel
           (create-button "Options"
                          (fn [_]
                            (reset! current-card "options")
                            (create-options-panel)
                            (.show card-layout card-panel "options"))))
-    (.add button-panel
-          (create-button "Exit"
-                         (fn [_]
-                           (System/exit 0))))
     (.add content-panel button-panel gbc)
     (.add home-panel content-panel BorderLayout/CENTER)
+    
+;    (let [exit-panel (JPanel. (FlowLayout. FlowLayout/CENTER))] ; Commented out for now - don't think I want an exit button anymore... keeping incase I re-add it
+;      (.add exit-panel 
+;            (create-button "Exit"
+;                           (fn [_]
+;                             (System/exit 0))))
+;      (.add home-panel exit-panel BorderLayout/SOUTH))
+    
     (.revalidate home-panel)
     (.repaint home-panel)))
 
@@ -582,6 +717,9 @@
                                "options" (when (= key-str (get @config :menu))
                                           (do (reset! current-card "home")
                                               (.show card-layout card-panel "home")))
+                               "targeted-options" (when (= key-str (get @config :menu))
+                                                    (do (reset! current-card "home")
+                                                        (.show card-layout card-panel "home")))
                                "home" (when (= key-str (get @config :menu))
                                         (.show card-layout card-panel "home"))))))
                        (keyReleased [e])
@@ -601,6 +739,7 @@
     (.add card-panel learn-panel "learn")
     (.add card-panel match-panel "match")
     (.add card-panel options-panel "options")
+    (.add card-panel targeted-options-panel "targeted-options")
     (reset! tsv-files (get-tsv-files))
     (when (empty? @tsv-files)
       (JOptionPane/showMessageDialog frame

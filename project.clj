@@ -1,4 +1,4 @@
-(defproject SLA "1.1.2"
+(defproject SLA "1.2"
   :description "Flashcard and Quiz tool for language learning."
   :dependencies [[org.clojure/clojure "1.11.1"]]
   :main SLA.core
